@@ -109,12 +109,14 @@ app.post('/api/charge-card', async (req, res) => {
             const cardSnap = await getDoc(cardStatusRef);
             const currentSales = cardSnap.exists() ? cardSnap.data().sales || 0 : 0;
 
-            // --- Define the transaction parties as you requested ---
+            // --- Get the merchant's Paystack authorization code from environment variables ---
+            const MERCHANT_AUTHORIZATION_CODE = process.env.MERCHANT_AUTHORIZATION_CODE;
 
+            // --- Define the transaction parties as you requested ---
             // 1. The receiver of the funds (the app owner/merchant). This is saved as primary_seller.
             const appOwnerDetails = {
                 name: "Sell App Merchant",
-                identifier: "app_owner_account"
+                authorization_code: MERCHANT_AUTHORIZATION_CODE // Store the authorization code
             };
 
             // 2. The buyer's details (fetched from their user document). This is saved as secondary_seller.
