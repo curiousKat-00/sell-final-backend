@@ -109,11 +109,28 @@ app.post('/api/charge-card', async (req, res) => {
             const cardSnap = await getDoc(cardStatusRef);
             const currentSales = cardSnap.exists() ? cardSnap.data().sales || 0 : 0;
 
+            // --- Define the transaction parties as you requested ---
+
+            // 1. The receiver of the funds (the app owner/merchant). This is saved as primary_seller.
+            const appOwnerDetails = {
+                name: "Sell App Merchant",
+                identifier: "app_owner_account"
+            };
+
+            // 2. The buyer's details (fetched from their user document). This is saved as secondary_seller.
+            const buyerDocRef = doc(db, 'users', userId);
+            const buyerDocSnap = await getDoc(buyerDocRef);
+            const buyerCardDetails = buyerDocSnap.exists() ? buyerDocSnap.data().payment_details : null;
+
+            // Update the card document with the correct status and seller fields
             await setDoc(cardStatusRef, {
                 card_status: true,
                 activeUntil: activeUntil,
-                sales: currentSales // Sales count is not incremented on buy
+                sales: currentSales,
+                primary_seller: appOwnerDetails,
+                secondary_seller: buyerCardDetails
             }, { merge: true });
+
 
             res.status(200).json({
                 message: 'Card purchased successfully!',
