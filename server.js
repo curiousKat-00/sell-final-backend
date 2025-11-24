@@ -104,12 +104,8 @@ app.post('/api/charge-card', async (req, res) => {
             const activeUntil = new Date();
             activeUntil.setDate(activeUntil.getDate() + activePeriodDays);
 
-            // --- MODIFICATION START ---
-            // Create a reference to a NEW document with an auto-generated ID
-            const cardStatusCollectionRef = collection(db, 'users', userId, 'card_status');
-            const newCardRef = doc(cardStatusCollectionRef); // This creates a reference with a new unique ID
-            // --- MODIFICATION END ---
-
+            // Get a reference to the specific card document using its title as the ID.
+            const cardStatusRef = doc(db, 'users', userId, 'card_status', cardTitle);
             // --- Get the merchant's Paystack authorization code from environment variables ---
             const MERCHANT_AUTHORIZATION_CODE = process.env.MERCHANT_AUTHORIZATION_CODE;
             if (!MERCHANT_AUTHORIZATION_CODE) {
@@ -128,24 +124,25 @@ app.post('/api/charge-card', async (req, res) => {
             const buyerDocSnap = await getDoc(buyerDocRef);
             const buyerCardDetails = buyerDocSnap.exists() ? buyerDocSnap.data().payment_details : null;
 
-            const newCardData = {
-                card_id: newCardRef.id, // Store the unique ID inside the document
+            // Get the current sales count before updating.
+            const cardSnap = await getDoc(cardStatusRef);
+            const currentSales = cardSnap.exists() ? cardSnap.data().sales || 0 : 0;
+
+            const cardUpdateData = {
                 title: cardTitle, // Store the type of card
                 card_status: true,
                 activeUntil: activeUntil,
-                sales: 0, // A new card always starts with 0 sales
+                sales: currentSales, // Keep the existing sales count
                 primary_seller: appOwnerDetails,
                 secondary_seller: buyerCardDetails
             };
 
             // Update the card document with the correct status and seller fields
-            await setDoc(newCardRef, newCardData);
-
+            await setDoc(cardStatusRef, cardUpdateData, { merge: true });
 
             res.status(200).json({
                 message: 'Card purchased successfully!',
-                // Return the full new card object so the frontend can update its state
-                newCard: { ...newCardData, activeUntil: activeUntil.toISOString() }
+                updatedCard: { ...cardUpdateData, id: cardTitle, activeUntil: activeUntil.toISOString() }
             });
 
         } else {
