@@ -3,7 +3,7 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, setDoc, getDoc } = require('firebase/firestore');
+const { getFirestore, doc, setDoc, getDoc, collection } = require('firebase/firestore');
 
 const app = express();
 
