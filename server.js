@@ -3,7 +3,7 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, setDoc, getDoc, collection } = require('firebase/firestore');
+const { getFirestore, doc, setDoc, getDoc, collection, updateDoc } = require('firebase/firestore');
 
 const app = express();
 
@@ -162,7 +162,7 @@ app.post('/api/list-card-for-sale', async (req, res) => {
     }
     try {
         const cardRef = doc(db, 'users', userId, 'card_status', cardId);
-        await setDoc(cardRef, { card_onSale: true }, { merge: true });
+        await updateDoc(cardRef, { card_onSale: true });
         res.status(200).json({ message: 'Card is now listed for sale.' });
     } catch (error) {
         console.error('Error listing card for sale:', error);
@@ -178,7 +178,7 @@ app.post('/api/cancel-sale', async (req, res) => {
     }
     try {
         const cardRef = doc(db, 'users', userId, 'card_status', cardId);
-        await setDoc(cardRef, { card_onSale: false }, { merge: true });
+        await updateDoc(cardRef, { card_onSale: false });
         res.status(200).json({ message: 'Sale listing has been cancelled.' });
     } catch (error) {
         console.error('Error cancelling sale:', error);
