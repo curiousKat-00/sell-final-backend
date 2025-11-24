@@ -80,9 +80,9 @@ app.post('/api/verify-payment', async (req, res) => {
 
 // Endpoint to charge a saved card for a purchase
 app.post('/api/charge-card', async (req, res) => {
-    const { userId, cardId, email, amount, authorization_code } = req.body;
+    const { userId, cardTitle, email, amount, authorization_code } = req.body;
 
-    if (!userId || !cardId || !email || !amount || !authorization_code) {
+    if (!userId || !cardTitle || !email || !amount || !authorization_code) {
         return res.status(400).json({ error: 'Missing required payment details.' });
     }
 
@@ -94,23 +94,27 @@ app.post('/api/charge-card', async (req, res) => {
             authorization_code,
             metadata: {
                 userId,
-                cardId,
+                cardId: cardTitle, // Keep metadata consistent if needed elsewhere
             }
         });
 
         if (data.data.status === 'success') {
             // Payment successful, now update Firestore with the card's new status
-            const activePeriodDays = { 'Pinkies': 10, 'Kleepa': 20, 'Two Kleepa': 30 }[cardId] || 10;
+            const activePeriodDays = { 'Pinkies': 10, 'Kleepa': 20, 'Two Kleepa': 30 }[cardTitle] || 10;
             const activeUntil = new Date();
             activeUntil.setDate(activeUntil.getDate() + activePeriodDays);
 
-            const cardStatusRef = doc(db, 'users', userId, 'card_status', cardId);
-            
-            const cardSnap = await getDoc(cardStatusRef);
-            const currentSales = cardSnap.exists() ? cardSnap.data().sales || 0 : 0;
+            // --- MODIFICATION START ---
+            // Create a reference to a NEW document with an auto-generated ID
+            const cardStatusCollectionRef = collection(db, 'users', userId, 'card_status');
+            const newCardRef = doc(cardStatusCollectionRef); // This creates a reference with a new unique ID
+            // --- MODIFICATION END ---
 
             // --- Get the merchant's Paystack authorization code from environment variables ---
             const MERCHANT_AUTHORIZATION_CODE = process.env.MERCHANT_AUTHORIZATION_CODE;
+            if (!MERCHANT_AUTHORIZATION_CODE) {
+                console.error("FATAL ERROR: MERCHANT_AUTHORIZATION_CODE is not defined in .env file.");
+            }
 
             // --- Define the transaction parties as you requested ---
             // 1. The receiver of the funds (the app owner/merchant). This is saved as primary_seller.
@@ -124,21 +128,26 @@ app.post('/api/charge-card', async (req, res) => {
             const buyerDocSnap = await getDoc(buyerDocRef);
             const buyerCardDetails = buyerDocSnap.exists() ? buyerDocSnap.data().payment_details : null;
 
-            // Update the card document with the correct status and seller fields
-            await setDoc(cardStatusRef, {
+            const newCardData = {
+                card_id: newCardRef.id, // Store the unique ID inside the document
+                title: cardTitle, // Store the type of card
                 card_status: true,
                 activeUntil: activeUntil,
-                sales: currentSales,
+                sales: 0, // A new card always starts with 0 sales
                 primary_seller: appOwnerDetails,
                 secondary_seller: buyerCardDetails
-            }, { merge: true });
+            };
+
+            // Update the card document with the correct status and seller fields
+            await setDoc(newCardRef, newCardData);
 
 
             res.status(200).json({
                 message: 'Card purchased successfully!',
-                activeUntil: activeUntil.toISOString(),
-                sales: currentSales
+                // Return the full new card object so the frontend can update its state
+                newCard: { ...newCardData, activeUntil: activeUntil.toISOString() }
             });
+
         } else {
             res.status(400).json({ error: data.data.gateway_response || 'Payment failed.' });
         }
