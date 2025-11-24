@@ -154,6 +154,61 @@ app.post('/api/charge-card', async (req, res) => {
     }
 });
 
+// Endpoint to list a card for sale
+app.post('/api/list-card-for-sale', async (req, res) => {
+    const { userId, cardId } = req.body;
+    if (!userId || !cardId) {
+        return res.status(400).json({ error: 'User ID and Card ID are required.' });
+    }
+    try {
+        const cardRef = doc(db, 'users', userId, 'card_status', cardId);
+        await setDoc(cardRef, { card_onSale: true }, { merge: true });
+        res.status(200).json({ message: 'Card is now listed for sale.' });
+    } catch (error) {
+        console.error('Error listing card for sale:', error);
+        res.status(500).json({ error: 'Failed to list card for sale.' });
+    }
+});
+
+// Endpoint to cancel a sale listing
+app.post('/api/cancel-sale', async (req, res) => {
+    const { userId, cardId } = req.body;
+    if (!userId || !cardId) {
+        return res.status(400).json({ error: 'User ID and Card ID are required.' });
+    }
+    try {
+        const cardRef = doc(db, 'users', userId, 'card_status', cardId);
+        await setDoc(cardRef, { card_onSale: false }, { merge: true });
+        res.status(200).json({ message: 'Sale listing has been cancelled.' });
+    } catch (error) {
+        console.error('Error cancelling sale:', error);
+        res.status(500).json({ error: 'Failed to cancel sale.' });
+    }
+});
+
+// Endpoint for a buyer to finalize a purchase, which updates the seller's card
+app.post('/api/finalize-sale', async (req, res) => {
+    const { sellerId, cardId } = req.body; // The original owner (seller) and the card ID
+    if (!sellerId || !cardId) {
+        return res.status(400).json({ error: 'Seller ID and Card ID are required.' });
+    }
+    try {
+        const cardRef = doc(db, 'users', sellerId, 'card_status', cardId);
+        const cardSnap = await getDoc(cardRef);
+
+        if (!cardSnap.exists()) {
+            return res.status(404).json({ error: 'Card not found.' });
+        }
+
+        const currentSales = cardSnap.data().sales || 0;
+        await setDoc(cardRef, { card_onSale: false, sales: currentSales + 1 }, { merge: true });
+        res.status(200).json({ message: 'Sale finalized successfully.' });
+    } catch (error) {
+        console.error('Error finalizing sale:', error);
+        res.status(500).json({ error: 'Failed to finalize sale.' });
+    }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
